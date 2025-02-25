@@ -1,172 +1,171 @@
-import sys
-sys.path.append("/home/leonardo/NONHUMAN/SO-ARM100/")
-
 import os
-import time
-import pyaudio
-import wave
-import threading
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import flet as ft
 from dotenv import load_dotenv
-from soarm100.agentic.robot import SOARM100AgenticPolicy
-from soarm100.agentic.utils import init_config
-from soarm100.agentic.llm.agent import AgentSOARM100
-from soarm100.agentic.stt.whisper_model import STTWhisperModel
-from soarm100.agentic.tts.elevenlabs_model import TTSElevenLabsModel
-from pydub import AudioSegment
-from pydub.playback import play
+from datetime import datetime
+from soarm100.agentic.record import AudioController, RecordingController
 
 load_dotenv()
 
-os.environ["SDL_VIDEODRIVER"] = "dummy"
+os.environ["ELEVENLABS_API_KEY"] = os.getenv("ELEVENLABS_API_KEY")
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
-os.environ["AUDIO_INPUT_DATA_PATH"] = "/home/leonardo/NONHUMAN/SO-ARM100/scripts/audio/input"
-os.environ["AUDIO_OUTPUT_DATA_PATH"] = "/home/leonardo/NONHUMAN/SO-ARM100/scripts/audio/output"
 
-def ending_recording(audio, frames, stream, record_thread):
+STATE_IDLE = 0
+STATE_RECORDING = 1
+STATE_PROCESSING = 2
+STATE_SPEAKING = 3
 
-    record_thread.join()
-    stream.stop_stream()
-    stream.close()
+
+class Interface:
     
-    path_audio = os.path.join(os.environ["AUDIO_INPUT_DATA_PATH"], "grabacion.mp3")
-    sound_file = wave.open(path_audio, "wb")
-    sound_file.setnchannels(1)
-    sound_file.setsampwidth(audio.get_sample_size(pyaudio.paInt16))
-    sound_file.setframerate(44100)
-    sound_file.writeframes(b"".join(frames))
-    sound_file.close()
+    def __init__(self, page: ft.Page):
+        self.page = page
+        self.setup_page()
+        self.setup_controls()
 
-def play_audio_file(audio_path):
-    """
-    Play audio from the given file path (supports MP3)
-    """
-    try:
-        audio = AudioSegment.from_mp3(audio_path)
-        play(audio)
-    except Exception as e:
-        print(f"Error playing audio: {e}")
+        self.audio_controller = AudioController()
+        self.recording_controller = RecordingController(
+            self.audio_controller,
+            self.add_log
+        )
+        self.add_log("System initialized...")
 
-def main_workflow(agent:AgentSOARM100,
-                  tts:TTSElevenLabsModel,
-                  stt:STTWhisperModel):
+    def __del__(self):
+        if hasattr(self, "recording_controller"):
+            self.recording_controller.cleanup()
+        if hasattr(self, "audio_controller"):
+            self.audio_controller.cleanup()
 
-
-    audio = pyaudio.PyAudio()
-    frames = []
-    recording = False
-    stream = None
-    
-    def record_audio():
-        nonlocal frames, stream
-        while recording:
-            data = stream.read(1024)
-            frames.append(data)
-    
-    while True:
-        command = input("Presiona 'r' para grabar, 's' para detener, 'q' para salir: ").lower()
+    def setup_page(self):
+        self.page.title = "AGENT SOARM100"
+        self.page.bgcolor = ft.colors.WHITE
+        self.page.padding = 20
+        self.page.theme_mode = ft.ThemeMode.LIGHT
         
-        if command == 'r' and not recording:
-            recording = True
-            try:
-                os.remove(os.path.join(os.environ["AUDIO_INPUT_DATA_PATH"], "grabacion.mp3"))
-            except:
-                pass
-            stream = audio.open(format=pyaudio.paInt16,
-                              channels=1,
-                              rate=44100,
-                              input=True,
-                              frames_per_buffer=1024)
-            frames = []
-            print("Grabando... (presiona 's' para detener)")
-            
-            record_thread = threading.Thread(target=record_audio)
-            record_thread.start()
-            
-        elif command == 's' and recording:
-            recording = False
-            ending_recording(audio, frames, stream, record_thread)
-            print("Ending recording...")
-            start_time = time.time()
-            transcription = stt.transcribe(os.path.join(os.environ["AUDIO_INPUT_DATA_PATH"], "grabacion.mp3"))
-            print(f"Transcription: {transcription}")
-            end_time = time.time()
-            print(f"Transcription time: {end_time - start_time} seconds")
-            
-            start_time = time.time()
-            response = agent.run(transcription)
-            end_time = time.time()
-            print(f"Response time: {end_time - start_time} seconds")
-            
-            
-            start_time = time.time()
-            output_path = os.path.join(os.environ["AUDIO_OUTPUT_DATA_PATH"], "output.mp3")
-            tts.convert(response, output_path)
-            end_time = time.time()
-            print(f"TTS time: {end_time - start_time} seconds")
-            
-            start_time = time.time()
-            play_audio_file(output_path)
-            end_time = time.time()
-            print(f"Play time: {end_time - start_time} seconds")
+        font_file = "../fonts/PressStart2P-Regular.ttf"
+        if not os.path.exists(font_file):
+            print(f"Warning: Font file '{font_file}' not found.")
+        self.page.fonts = {"PressStart2P": font_file}
+
+    def setup_controls(self):
+        self.theme_toggle = ft.IconButton(
+            icon=ft.icons.DARK_MODE,
+            icon_color=ft.colors.BLACK,
+            icon_size=30,
+            tooltip="Toggle theme",
+            on_click=self.toggle_theme,
+        )
+
+        self.title = ft.Text(
+            "AGENT SOARM100",
+            size=40,
+            weight=ft.FontWeight.BOLD,
+            font_family="Courier",
+            color=ft.colors.BLACK,
+            text_align=ft.TextAlign.CENTER,
+        )
+
+        self.log_area = ft.ListView(
+            expand=True,
+            spacing=10,
+            auto_scroll=True,
+            padding=10,
+        )
+
+        self.log_container = ft.Container(
+            content=self.log_area,
+            width=800,
+            height=400,
+            border=ft.border.all(2, ft.colors.BLACK),
+            bgcolor=ft.colors.WHITE,
+            padding=10,
+        )
+
+        self.mic_button = ft.IconButton(
+            icon=ft.icons.RADIO_BUTTON_ON,
+            icon_color=ft.colors.BLACK,
+            icon_size=100,
+            tooltip="Start recording",
+            style=ft.ButtonStyle(
+                shape=ft.CircleBorder(),
+                side=ft.BorderSide(2, ft.colors.BLACK),
+            ),
+            on_click=self.toggle_recording,
+        )
+
+        self.nonhuman_label = ft.Text(
+            "NONHUMAN",
+            size=14,
+            font_family="PressStart2P",
+            color=ft.colors.BLACK,
+            text_align=ft.TextAlign.CENTER,
+        )
+
+        self.page.add(
+            ft.Row([
+                ft.Container(expand=True),
+                self.theme_toggle
+            ]),
+            ft.Column([
+                ft.Container(content=self.title, alignment=ft.alignment.center),
+                ft.Container(content=self.log_container, alignment=ft.alignment.center, expand=True),
+                ft.Container(content=self.mic_button, alignment=ft.alignment.center, margin=ft.margin.only(bottom=20)),
+                ft.Container(content=self.nonhuman_label, alignment=ft.alignment.center),
+            ], alignment=ft.MainAxisAlignment.CENTER, expand=True, spacing=20)
+        )
+
+    def toggle_theme(self, e):
+        self.page.theme_mode = (
+            ft.ThemeMode.LIGHT if self.page.theme_mode == ft.ThemeMode.DARK else ft.ThemeMode.DARK
+        )
+        is_dark = self.page.theme_mode == ft.ThemeMode.DARK
         
-        elif command == 'q':
-            break
+        self.page.bgcolor = ft.colors.BLACK if is_dark else ft.colors.WHITE
+        text_color = ft.colors.WHITE if is_dark else ft.colors.BLACK
+        
+        self.title.color = text_color
+        self.log_container.bgcolor = ft.colors.BLACK if is_dark else ft.colors.WHITE
+        self.log_container.border = ft.border.all(2, text_color)
+        
+        for log_message in self.log_area.controls:
+            log_message.color = text_color
+            
+        self.mic_button.icon_color = text_color
+        self.mic_button.style.side = ft.BorderSide(2, text_color)
+        self.nonhuman_label.color = text_color
+        self.theme_toggle.icon = ft.icons.LIGHT_MODE if is_dark else ft.icons.DARK_MODE
+        self.theme_toggle.icon_color = text_color
+        
+        self.page.update()
 
-    audio.terminate()
+    def toggle_recording(self, e):
+        if self.recording_controller.recording:
+            self.recording_controller.stop_recording()
+            self.mic_button.icon = ft.icons.RADIO_BUTTON_OFF
+            self.mic_button.tooltip = "Start recording"
+        else:
+            self.recording_controller.start_recording()
+            self.mic_button.icon = ft.icons.STOP_CIRCLE
+            self.mic_button.tooltip = "Stop recording"
+        self.page.update()
 
-def main(args=None):
-    cfg          = init_config()
-    robot_policy = SOARM100AgenticPolicy(cfg)
-    agent        = AgentSOARM100(robot_policy)
-    tts          = TTSElevenLabsModel()
-    stt          = STTWhisperModel()
-    
-    # Variable de control para señalizar la terminación
-    running = threading.Event()
-    running.set()  # Inicialmente está activo
-    
-    # Modificar el _run del robot para que verifique la señal de terminación
-    def robot_run_wrapper():
-        while running.is_set():
-            robot_policy._run()
-            #time.sleep(1)  # Pequeña pausa para no consumir CPU innecesariamente
-    
-    # Crear threads para ejecutar las funciones en paralelo
-    robot_thread = threading.Thread(target=robot_run_wrapper)
-    workflow_thread = threading.Thread(target=main_workflow, args=(agent, tts, stt))
-    
-    # Configurar los threads como daemons
-    robot_thread.daemon = True
-    workflow_thread.daemon = True
-    
-    # Iniciar los threads
-    robot_thread.start()
-    workflow_thread.start()
-    
-    try:
-        # Esperar a que el thread del workflow termine
-        workflow_thread.join()
-    except KeyboardInterrupt:
-        print("\nPrograma terminado por el usuario")
-    finally:
-        # Señalizar la terminación y limpiar recursos
-        running.clear()  # Esto hará que robot_run_wrapper termine
-        # Esperar a que el thread del robot termine
-        robot_thread.join(timeout=2)  # Esperar máximo 2 segundos
+    def add_log(self, message):
+        timestamp = datetime.now().strftime("[%H:%M:%S]")
+        self.log_area.controls.append(
+            ft.Text(
+                f"{timestamp} {message}",
+                color=ft.colors.BLACK if self.page.theme_mode == ft.ThemeMode.LIGHT else ft.colors.WHITE,
+                font_family="Courier",
+                size=16,
+            )
+        )
+        self.page.update()
+
+def main(page: ft.Page):
+    interface = Interface(page)
 
 if __name__ == "__main__":
-    main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    ft.app(target=main)

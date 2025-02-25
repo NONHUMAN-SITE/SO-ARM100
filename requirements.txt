@@ -7,3 +7,8 @@ langchain-openai==0.3.6
 langgraph==0.2.74 
 python-dotenv==1.0.1
 pydub==0.25.1
+#pipecat-ai==0.0.57
+#cartesia==2.0.0a0
+#daily-python==0.14.2
+webrtcvad-wheels==2.0.14
+flet==0.23.2

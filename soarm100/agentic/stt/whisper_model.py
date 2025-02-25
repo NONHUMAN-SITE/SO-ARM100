@@ -1,9 +1,10 @@
 import os
 from openai import OpenAI
+from soarm100.agentic.stt.base import STTBase
 
-class STTWhisperModel:
+class STTWhisperModel(STTBase):
     def __init__(self):
-        self.client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     def transcribe(self, input_path:str) -> str:
         audio_file= open(input_path, "rb")

@@ -10,16 +10,15 @@ from lerobot.common.robot_devices.robots.utils import make_robot_from_config
 from lerobot.common.policies.factory import make_policy
 from lerobot.common.robot_devices.control_utils import sanity_check_dataset_name
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-from .utils import init_config,nullcontext
+from .utils import nullcontext
 
 POLICIES = {"NULL":None,
-            "put_marker_in_box":"/home/leonardo/NONHUMAN/SO-ARM100/outputs/ckpt_test/pretrained_model"}
+            "put_marker_in_box":"/home/leonardo/NONHUMAN/SO-ARM100/outputs/ckpt_test/pretrained_model",
+            "teleop":None}
 
 class SOARM100AgenticPolicy:
     
     def __init__(self,cfg: ControlPipelineConfig):
-        
-        print("Initializing robot...")
         robot = make_robot_from_config(cfg.robot)
         
         self.robot = robot
@@ -40,21 +39,18 @@ class SOARM100AgenticPolicy:
         )
 
         if not self.robot.is_connected:
-            self.robot.connect()
+            #self.robot.connect()
             print("Robot connected")
         else:
             print("Robot already connected")
 
     def _run(self):
         while self.running:
-            #print("Running policy: ",self.policy)
             if self.policy is not None:
-                #print("Ejecutando política: ", self.policy)
                 self.act()
                 time.sleep(0.03)
             else:
-                # Pequeña pausa para no consumir CPU innecesariamente
-                time.sleep(1)
+                time.sleep(0.03)
 
     def act(self):
         observation = self.robot.capture_observation()
@@ -63,7 +59,6 @@ class SOARM100AgenticPolicy:
         print("action sent: ",action)
 
     def change_policy(self, policy_name: str):
-        '''Aquí debemos de cambiar el policy_name por el nombre de la política que queremos ejecutar'''
         if policy_name not in POLICIES:
             raise ValueError(f"Policy {policy_name} not found")
     

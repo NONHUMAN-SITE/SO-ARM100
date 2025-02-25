@@ -1,4 +1,5 @@
 HF_USER="NONHUMAN-RESEARCH"
+REPO_ID="NONHUMAN-RESEARCH/eval_act_so100_test"
 
 python agentic_soarm100.py \
   --robot.type=so100 \
