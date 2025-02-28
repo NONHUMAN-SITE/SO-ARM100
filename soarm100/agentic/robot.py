@@ -1,9 +1,7 @@
-import sys
 import torch
 from copy import copy
 from queue import Queue
 import time
-sys.path.append("/home/leonardo/lerobot")
 
 from lerobot.common.robot_devices.control_configs import ControlPipelineConfig
 from lerobot.common.robot_devices.robots.utils import make_robot_from_config

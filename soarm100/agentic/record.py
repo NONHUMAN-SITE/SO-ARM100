@@ -151,7 +151,6 @@ class RecordingController:
             self.speech_buffer = []
             self.log_callback("Recording started...")
             
-            # Iniciar el hilo de grabación
             self.recording_thread = threading.Thread(target=self._recording_loop)
             self.recording_thread.start()
         except Exception as e:
@@ -169,17 +168,17 @@ class RecordingController:
             self.log_callback("Recording stopped.")
             
             if self.recording_thread:
-                self.recording_thread.join(timeout=2)  # Esperar máximo 2 segundos
+                self.recording_thread.join(timeout=2) 
             
             self.audio_controller.stop_input_stream()
             
-            if self.speech_buffer:  # Solo procesar si hay algo grabado
+            if self.speech_buffer:
                 self._process_recording()
         except Exception as e:
             self.log_callback(f"Error stopping recording: {e}")
             raise
         finally:
-            self.recording = False  # Asegurar que el estado quede en falso
+            self.recording = False 
 
     def _recording_loop(self):
         '''
@@ -219,8 +218,8 @@ class RecordingController:
 
     def _process_response(self, user_text: str):
         '''
-        Genera los chunks de respuesta del agente y los envía al buffer
-        para su procesamiento en streaming
+        Generates the chunks of the agent's response and sends them to the buffer
+        for processing in streaming
         '''
         response_text = ""
         text_buffer = ""
@@ -233,11 +232,10 @@ class RecordingController:
                 text_buffer = self._send_to_buffer(text_buffer)
             
             self.log_callback(f"[AGENT]: {response_text}")
-            # Enviar el último fragmento si contiene texto
+            
             if text_buffer.strip():
                 self.response_buffer.put(text_buffer.strip())
             
-            # Señalizar que no hay más texto por procesar
             self.response_buffer.put(None)
         except Exception as e:
             self.log_callback(f"Error in process response: {e}")
@@ -252,7 +250,6 @@ class RecordingController:
                 if self.should_stop_playback.is_set():
                     continue
 
-                # Esperar a que termine el audio anterior
                 while self.current_audio_playing.is_set() and not self.should_stop_playback.is_set():
                     time.sleep(0.1)
 
@@ -261,27 +258,21 @@ class RecordingController:
 
                 self.current_audio_playing.set()
                 try:
-                    # Reiniciar el buffer acumulado para este fragmento
                     temp_buffer = io.BytesIO()
                     
                     for audio_chunk in self.tts_model.generate_audio_stream(response):
                         if self.should_stop_playback.is_set():
                             break
-                        # Acumular los chunks de audio
                         temp_buffer.write(audio_chunk)
                     
-                    # Convertir el audio MP3 acumulado a PCM
                     if temp_buffer.tell() > 0:
                         temp_buffer.seek(0)
                         try:
-                            # Convertir MP3 a PCM con pydub
                             audio_segment = AudioSegment.from_file(temp_buffer, format="mp3")
                             
-                            # Ajustar el audio a las propiedades deseadas
                             audio_segment = audio_segment.set_frame_rate(44100)
                             audio_segment = audio_segment.set_channels(1)
                             
-                            # Convertir a PCM y enviar a la cola de reproducción
                             pcm_data = audio_segment.raw_data
                             self.audio_controller.audio_queue.put(pcm_data)
                             
@@ -322,15 +313,12 @@ class RecordingController:
         return text_buffer
 
     def cleanup(self):
-        # Detener cualquier grabación en curso
         if self.recording:
             self.stop_recording()
         
-        # Detener reproducción de audio
         self.should_stop_playback.set()
         self.should_stop.set()
             
-        # Asegurarse de detener el robot antes de cerrar
         if hasattr(self, "robot_policy"):
             self.robot_policy.running = False
             if hasattr(self, "robot_thread") and self.robot_thread.is_alive():
