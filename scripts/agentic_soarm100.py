@@ -12,12 +12,10 @@ load_dotenv()
 os.environ["ELEVENLABS_API_KEY"] = os.getenv("ELEVENLABS_API_KEY")
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
-
 STATE_IDLE = 0
 STATE_RECORDING = 1
 STATE_PROCESSING = 2
 STATE_SPEAKING = 3
-
 
 class Interface:
     
