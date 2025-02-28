@@ -10,7 +10,7 @@ class ElevenLabsModelConfig:
     https://elevenlabs.io/docs/api-reference/text-to-speech/convert
     '''
     def __init__(self):
-        self.voice_id = "TX3LPaxmHKxFdv7VOQHJ"
+        self.voice_id = "t0jbNlBVZ17f02VDIeMI"
         self.output_format = "mp3_44100_128"
         self.model_id = "eleven_flash_v2_5"
 
@@ -23,8 +23,7 @@ class TTSElevenLabsModel(TTSBase):
 
     def generate_audio_stream(self, text: str):
         if not text or text.isspace():
-            return []
-            
+            return []   
         try:
             audio_stream = self.client.text_to_speech.convert_as_stream(
                 text=text,
