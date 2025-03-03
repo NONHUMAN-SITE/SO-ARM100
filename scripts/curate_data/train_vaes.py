@@ -8,6 +8,8 @@ from soarm100.curate_data.dataset import (create_dataset,
 from lerobot.configs import parser
 from lerobot.configs.train import TrainPipelineConfig
 from soarm100.curate_data.config import CurateDataConfig
+from soarm100.curate_data.models.beta_vae import (BetaVAES,
+                                                  MultiEncoderStates)
 '''
 El dataset tiene el siguiente formato:
 
@@ -40,12 +42,31 @@ def train_vaes(cfg: CurateDataConfig):
 
     dataset = create_dataset(cfg,type_model=cfg.type)
 
+    print(cfg.type)
+
     dataloader = torch.utils.data.DataLoader(dataset,
                                              batch_size=cfg.batch_size,
                                              collate_fn=lambda x: collate_fn_mutual_information(x,cfg.type))
+    
+    z_dim = {
+        "states": 16,
+        "actions": 16,
+    }[cfg.type]
+
+    if cfg.type == "states":
+        model = BetaVAES(encoder=MultiEncoderStates(),
+                         z_dim=z_dim)
+    else:
+        model = BetaVAES(encoder=MultiEncoderStates(),
+                         z_dim=z_dim)
+
     for batch in dataloader:
-        print(batch)
+        print(batch.keys())
+        mean, logvar = model(batch)
+        print(mean.shape, logvar.shape)
         break
+        
+        
     
 
 

@@ -10,4 +10,4 @@ python train_vaes.py \
   --policy.type=act \
   --output_dir=${OUTPUT_DIR} \
   --batch_size=8 \
-  --type=actions
+  --type=states
