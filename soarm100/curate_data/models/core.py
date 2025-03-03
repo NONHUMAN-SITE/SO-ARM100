@@ -80,15 +80,16 @@ class Concatenate(nn.Module):
         self.model = model
         self.flatten_time = flatten_time
 
-    def forward(self, modalities: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def forward(self, modalities: List[torch.Tensor]) -> torch.Tensor:
         # Ordena por clave para asegurar consistencia
-        keys = sorted(modalities.keys())
         if self.flatten_time:
             # Aplana cada tensor excepto la dimensión batch: (B, *) --> (B, -1)
-            x = torch.cat([modalities[k].reshape(modalities[k].shape[0], -1) for k in keys], dim=-1)
+            x = torch.cat([m.reshape(m.shape[0], -1) for m in modalities], dim=-1)
         else:
             # Alternativamente, si se requiere conservar la dimensión temporal (B, T, *).
-            x = torch.cat([modalities[k].reshape(modalities[k].shape[0], modalities[k].shape[1], -1) for k in keys], dim=-1)
+            x = torch.cat([m.reshape(m.shape[0], m.shape[1], -1) for m in modalities], dim=-1)
+        
+        print("Concatenate",x.shape)
         if self.model is not None:
             x = self.model(x)
         return x

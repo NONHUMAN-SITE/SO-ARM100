@@ -28,7 +28,6 @@ class MutualInformationDataset(torch.utils.data.Dataset):
         cómo funciona este y cómo podemos modificar el action_chunk
         para esto.
         '''
-        
         timestep = self.dataset[index]
 
         if self.type_model == "states":

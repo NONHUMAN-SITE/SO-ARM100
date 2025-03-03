@@ -276,6 +276,117 @@ class ResNet18(ResNet):
         )
 
 # ---------------------------------------------------------------------
+# Clases para el Decoder de ResNet
+# ---------------------------------------------------------------------
+class ResNetDecoder(nn.Module):
+    """
+    ResNet Decoder Network.
+    
+    Proyecta el vector latente z a una representación intermedia (usando una capa lineal a 512 unidades),
+    y a continuación lo reescala y lo procesa mediante bloques de ResNet (con upsampling) para reconstruir
+    una imagen de la misma forma que la observación (obs).
+    
+    Los parámetros:
+      - z_dim: dimensión del vector latente.
+      - stage_sizes: secuencia con la cantidad de bloques en cada etapa.
+      - block_cls: clase del bloque a utilizar (por defecto ResNetBlock).
+      - num_filters: cantidad base de filtros.
+      - act: función de activación (por defecto nn.ReLU).
+      - spatial_coordinates: (no utilizado en este caso, reservado para posibles extensiones).
+    """
+    def __init__(
+        self,
+        mlp_dim: int,
+        stage_sizes=(3, 4, 6, 3),
+        block_cls=ResNetBlock,
+        num_filters: int = 64,
+        act: callable = nn.ReLU,
+        spatial_coordinates: bool = False,
+    ):
+        super().__init__()
+        self.mlp_dim = mlp_dim
+        self.stage_sizes = stage_sizes
+        self.block_cls = block_cls
+        self.num_filters = num_filters
+        self.act = act
+        self.spatial_coordinates = spatial_coordinates
+        
+        # Proyección inicial: de z_dim a 512 (similar a nn.Dense(512) en JAX).
+        self.fc = nn.Linear(mlp_dim, 512)
+        
+        # Construir bloques decodificadores en orden inverso al encoder.
+        # Se parte de 512 canales (salida de self.fc) y se van actualizando según la etapa.
+        self.decoder_blocks = nn.ModuleList()
+        in_channels = 512
+        # Se recorre el arreglo de etapas en orden inverso:
+        for stage_index in reversed(range(len(self.stage_sizes))):
+            block_count = self.stage_sizes[stage_index]
+            out_channels = self.num_filters * (2 ** stage_index)
+            # En la primera capa de cada etapa (salvo la última) se hace upsampling (stride=2).
+            for block_index in range(block_count):
+                stride = 2 if (block_index == 0 and stage_index != 0) else 1
+                # Se crea el bloque con la bandera "transpose" para indicar upsampling.
+                block = self.block_cls(in_channels, out_channels, stride=stride, transpose=True)
+                self.decoder_blocks.append(block)
+                in_channels = out_channels
+
+        # Capa final para proyectar a 3 canales (imagen RGB) con convolución 3x3 y padding=1.
+        self.final_conv = nn.Conv2d(in_channels, 3, kernel_size=3, stride=1, padding=1)
+
+    def forward(self, z, obs, goal=None, train=True):
+        """
+        Parámetros:
+          - z: vector latente, de forma (B, z_dim)
+          - obs: tensor de observación usado para obtener la forma final deseada; se asume forma (B, C, H, W)
+          - goal: no implementado (se levanta error si se proporciona)
+        """
+        if goal is not None:
+            raise NotImplementedError("goal not supported in ResNetDecoder")
+        
+        # Proyección inicial: de z a 512 y reshape a (B, 512, 1, 1)
+        x = self.fc(z)
+        x = x.view(x.size(0), 512, 1, 1)
+        
+        # Determinar escalas para upsample inicial.
+        # En el código original: scale_h = round(H/32)+1, scale_w = round(W/32)+1.
+        H_obs, W_obs = obs.shape[2], obs.shape[3]
+        scale_h = round(H_obs / 32) + 1
+        scale_w = round(W_obs / 32) + 1
+        x = F.interpolate(x, size=(scale_h, scale_w), mode="nearest")
+        
+        # Procesamiento a través de los bloques decodificadores.
+        for block in self.decoder_blocks:
+            x = block(x)
+            
+        # Upsample extra: se duplica la resolución de x.
+        x = F.interpolate(x, scale_factor=2, mode="nearest")
+        
+        # Proyección final a 3 canales.
+        x = self.final_conv(x)
+        
+        # Finalmente, se ajusta la resolución para que coincida con la de obs.
+        x = F.interpolate(x, size=(H_obs, W_obs), mode="nearest")
+        return x
+
+
+class ResNet18Decoder(ResNetDecoder):
+    """
+    Versión específica del decoder usando la arquitectura ResNet18,
+    que utiliza 2 bloques por etapa.
+    """
+    def __init__(self,
+                 mlp_dim: int,
+                 num_filters: int = 64,
+                 act: callable = nn.ReLU,
+                 spatial_coordinates: bool = False):
+        super().__init__(mlp_dim=mlp_dim,
+                         stage_sizes=(2, 2, 2, 2),
+                         block_cls=ResNetBlock,
+                         num_filters=num_filters,
+                         act=act,
+                         spatial_coordinates=spatial_coordinates)
+
+# ---------------------------------------------------------------------
 # Pequeño test case
 # ---------------------------------------------------------------------
 if __name__ == '__main__':
@@ -286,11 +397,21 @@ if __name__ == '__main__':
                      use_clip_stem=False)
     model.eval()  # Modo evaluación
 
+    model_decoder = ResNet18Decoder(mlp_dim=1024,
+                                    num_filters=64,
+                                    act=nn.ReLU,
+                                    spatial_coordinates=False)
+    model_decoder.eval()  # Modo evaluación
+
     # Creamos un tensor aleatorio (valores en [0,1]) con forma (B, C, H, W)
-    x = torch.rand(2,3, 480, 640)
+    B = 8
+    x = torch.rand(B,3, 480, 640)
+    z = torch.randn(B,1024)
 
     # Hacemos un forward
     with torch.no_grad():
         output = model(x)
+        output_decoder = model_decoder(z,x)
     # Como num_kp=64, esperamos que la salida tenga 2*64=128 características por batch.
     print("Output shape:", output.shape)
+    print("Output decoder shape:", output_decoder.shape)
