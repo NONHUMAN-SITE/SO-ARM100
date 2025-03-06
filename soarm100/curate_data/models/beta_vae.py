@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from typing import Dict,Tuple
 import sys
-sys.path.append("/home/leonardo/NONHUMAN/SO-ARM100/")
+sys.path.append("/home/lperez/main/NONHUMAN/SO-ARM100")
 from soarm100.curate_data.models.resnet import ResNet18,ResNet18Decoder
 from soarm100.curate_data.models.core import Concatenate,MLP
 import torch.nn.functional as F
@@ -27,8 +27,8 @@ class BetaVAE:
             VAEDecoderStates(decoder)
         )
         if weights is None:
-            self.weights = [1.0, 1.0, 1.0]
-        else:
+            self.weights = [1.0/200, 1.0/200, 1.0]
+        else:   
             self.weights = weights
         self.beta = beta
 
@@ -52,11 +52,12 @@ class BetaVAE:
             loss, info = self._loss(x_hat, mean, logvar, batch)
         return loss.item(), info
 
-    def predict(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def predict(self, batch: Dict[str, torch.Tensor]) -> Tuple[Dict[str, torch.Tensor],
+                                                               torch.Tensor,
+                                                               torch.Tensor]:
         self.model.eval()
         with torch.no_grad():
-            # Retorna la codificación (mean)
-            return self.model.encode(batch)
+            return self.model(batch)
 
     def _loss(self,
               x_hat: Dict[str, torch.Tensor],
@@ -338,8 +339,14 @@ if __name__ == '__main__':
     print("Val Info:", val_info)
 
     # --- Test: predict (encode) ---
-    encoded = vae.predict(batch)
+    x_hat, mean, logvar = vae.predict(batch)
     print("\nPredict Step (Encoding):")
-    print("Encoded shape:", encoded.shape)
+    print("mean shape:", mean.shape)
+    print("logvar shape:", logvar.shape)
+
+    print(x_hat.keys())
+    print(x_hat["state_image_1"].shape)
+    print(x_hat["state_image_2"].shape)
+    print(x_hat["state_joints"].shape)
 
     print("\n¡Test completado con éxito!")

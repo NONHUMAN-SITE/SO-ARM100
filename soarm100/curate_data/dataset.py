@@ -1,9 +1,7 @@
 import torch
 
 from lerobot.common.datasets.factory import make_dataset
-from lerobot.common.utils.utils import (
-    set_global_seed,
-)
+from lerobot.common.utils.random_utils import set_seed
 from soarm100.curate_data.config import CurateDataConfig
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 
@@ -90,7 +88,7 @@ def create_dataset(cfg: CurateDataConfig,type_model: str):
         raise ValueError(f"type_model must be one of ['states', 'actions'] got {type_model}")
 
     if cfg.seed is not None:
-        set_global_seed(cfg.seed)
+        set_seed(cfg.seed)
 
     offline_dataset = make_dataset(cfg)
 
