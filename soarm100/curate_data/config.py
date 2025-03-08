@@ -11,10 +11,13 @@ class CurateDataConfig(HubMixin):
     dataset: DatasetConfig
     output_dir: Path | None = None
     seed: int | None = 1000
-    num_workers: int = 4
-    batch_size: int = 100
+    num_workers: int = 8
+    batch_size: int = 16
     optimizer: OptimizerConfig | None = None
+    learning_rate: float = 1e-4
     steps: int = 100_000
     save_freq: int = 20_000
+    log_freq: int = 1000
     policy: PreTrainedConfig | None = None
     type: str = "states" # "states" or "actions"
+    output_dir:str = "outputs/train"

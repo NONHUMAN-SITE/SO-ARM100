@@ -22,6 +22,7 @@ class BetaVAE:
         weights: Lista de pesos (floats) para cada componente de reconstrucción
                  (se asume el orden: [state_image_1, state_image_2, state_joints]).
         """
+
         self.model = BetaVaeModel(
             VAEEncoderStates(encoder, z_dim),
             VAEDecoderStates(decoder)
@@ -35,6 +36,9 @@ class BetaVAE:
     def to(self, device: torch.device) -> 'BetaVAE':
         self.model.to(device)
         return self
+
+    def parameters(self):
+        return self.model.parameters()
 
     def train_step(self, batch: Dict[str, torch.Tensor], optimizer: torch.optim.Optimizer) -> Tuple[float, dict]:
         self.model.train()
@@ -71,7 +75,7 @@ class BetaVAE:
         # Pérdida de reconstrucción por cada componente.
         recon_loss_total = 0.0
         recon_loss_dict = {}
-        keys = ["state_image_1", "state_image_2", "state_joints"]
+        keys = ["observation.images.laptop", "observation.images.phone", "observation.state"]
         for i, key in enumerate(keys):
             if key in batch and key in x_hat:
                 # Utilizamos error cuadrático medio con reducción "mean".
@@ -82,7 +86,7 @@ class BetaVAE:
                 recon_loss_total += recon_loss_weighted
         loss = recon_loss_total + self.beta * kl_loss
         info = {f"recon_loss/{key}": val for key, val in recon_loss_dict.items()}
-        info["recon_loss/total"] = recon_loss_total.item()
+        info["recon_loss/total"] = recon_loss_total.item() if isinstance(recon_loss_total, torch.Tensor) else recon_loss_total
         info["kl_loss"] = kl_loss.item()
         info["loss"] = loss.item()
         return loss, info
@@ -126,7 +130,7 @@ class VAEEncoderStates(nn.Module):
         z = self.z_proj(x)
 
         mean, logvar = torch.chunk(z, chunks=2, dim=-1)
-        
+
         return mean, logvar
 
 class VAEDecoderStates(nn.Module):
@@ -145,7 +149,8 @@ class VAEDecoderStates(nn.Module):
         super().__init__()
         self.model = model
         # Se utiliza un ModuleDict para almacenar las capas de proyección para cada key.
-        self.proj_layers = nn.ModuleDict()
+        # 6: number of joints
+        self.observation_state = nn.Linear(self.model.mlp_dim, 6)
 
     def _output_proj(self, x_hat: torch.Tensor, target: torch.Tensor, key: str) -> torch.Tensor:
         """
@@ -161,38 +166,22 @@ class VAEDecoderStates(nn.Module):
                 matching += 1
             else:
                 break
-
-        if matching < len(target.shape):
-            B = x_hat.size(0)
-            # Aplanamos desde la dimensión que no coincide en adelante.
-            in_features = x_hat.view(B, -1).shape[1]
-            # Se requiere proyectar a un número de elementos igual a:
-            # Tomamos target.shape[matching:] y creamos el tensor en el dispositivo de x_hat.
-            out_features = int(torch.prod(torch.tensor(target.shape[matching:], device=x_hat.device)))
-            # Si no existe todavía la capa para esta key, se crea y se asigna al mismo dispositivo.
-            if key not in self.proj_layers:
-                proj_layer = nn.Linear(in_features, out_features).to(x_hat.device)
-                nn.init.xavier_uniform_(proj_layer.weight)
-                if proj_layer.bias is not None:
-                    nn.init.zeros_(proj_layer.bias)
-                self.proj_layers[key] = proj_layer
-            else:
-                proj_layer = self.proj_layers[key]
-            x_hat = proj_layer(x_hat.view(B, -1))
-            x_hat = x_hat.view(*target.shape)
-        return x_hat
+        if key == "observation.state":
+            return self.observation_state(x_hat)
+        else:
+            return x_hat
 
     def forward(self, z: torch.Tensor, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         Se espera que `batch` tenga al menos las keys:
-           - state_image_1
-           - state_image_2
-           - state_joints
+           - observation.images.laptop
+           - observation.images.phone
+           - observation.state
         y que el modelo retorne una tupla con tres elementos correspondientes.
         """
         outputs = self.model(z, batch)
         # Se asume el siguiente orden:
-        keys = ["state_image_1", "state_image_2", "state_joints"]
+        keys = ["observation.images.laptop", "observation.images.phone", "observation.state"]
         num_outputs = len(outputs)
         keys = keys[:num_outputs]
         x_hat = {k: out for k, out in zip(keys, outputs)}
@@ -242,18 +231,19 @@ class MultiEncoderStates(nn.Module):
         }
         '''
 
-        image_1 = self.encoder_state_image1(batch["state_image_1"])
-        image_2 = self.encoder_state_image2(batch["state_image_2"])
-        joints = batch["state_joints"]
+        image_1 = self.encoder_state_image1(batch["observation.images.laptop"])
+        image_2 = self.encoder_state_image2(batch["observation.images.phone"])
+        joints = batch["observation.state"]
 
         x = self.concatenate([image_1, image_2, joints])
 
         return x
-        
-    
+           
 class MultiDecoderStates(nn.Module):
     def __init__(self,z_dim: int,mlp_dim: int):
         super(MultiDecoderStates, self).__init__()
+
+        self.mlp_dim = mlp_dim
 
         self.decoder_state_image1 = ResNet18Decoder(mlp_dim=mlp_dim,
                                                     num_filters=64,
@@ -273,10 +263,10 @@ class MultiDecoderStates(nn.Module):
     
     def forward(self, z: torch.Tensor, batch: Dict[str,torch.Tensor]) -> Tuple[torch.Tensor,torch.Tensor,torch.Tensor]:
         z = self.mlp(z)
-        image_1 = self.decoder_state_image1(z,batch["state_image_1"])
-        image_2 = self.decoder_state_image2(z,batch["state_image_2"])
+        image_1 = self.decoder_state_image1(z,batch["observation.images.laptop"])
+        image_2 = self.decoder_state_image2(z,batch["observation.images.phone"])
         joints = z
-        return image_1,image_2,joints #(1, 3, 480, 640], [1, 3, 480, 640]), [1, 1024])
+        return image_1,image_2,joints #(B, 3, 480, 640], [B, 3, 480, 640]), [B, 1024])
                                                     
 
 
@@ -288,7 +278,8 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    B = 4           # Batch size
+    
+    B = 8       # Batch size
     z_dim = 16      # Dimensión del espacio latente
     mlp_dim = 1024  # Dimensión interna del decoder
 
@@ -296,57 +287,62 @@ if __name__ == '__main__':
     # - "state_image_1" y "state_image_2": (B, 3, 480, 640)
     # - "state_joints": (B, 6)
     batch = {
-        "state_image_1": torch.randn(B, 3, 480, 640).to(device),
-        "state_image_2": torch.randn(B, 3, 480, 640).to(device),
-        "state_joints": torch.randn(B, 6).to(device)
+        "observation.images.laptop": torch.randn(B, 3, 480, 640).to(device),
+        "observation.images.phone": torch.randn(B, 3, 480, 640).to(device),
+        "observation.state": torch.randn(B, 6).to(device)
     }
 
     # Instanciar los módulos dummy.
-    dummy_encoder = MultiEncoderStates().to(device)
-    dummy_decoder = MultiDecoderStates(z_dim=z_dim, mlp_dim=mlp_dim).to(device)
+    dummy_encoder = MultiEncoderStates()
+    dummy_decoder = MultiDecoderStates(z_dim=z_dim, mlp_dim=mlp_dim)
 
     # Crear instancia de BetaVAE.
     beta = 1.0
     weights = [1.0, 1.0, 1.0]  # Peso por cada modalidad
+
     vae = BetaVAE(dummy_encoder,
                   dummy_decoder,
                   z_dim=z_dim,
                   beta=beta,
                   weights=weights)
+    
     vae.model.to(device)  # Mover el modelo completo al dispositivo
 
+    #print(f"Number of parameters: {vae.num_parameters()}")
     # Creamos un optimizador para el modelo.
     optimizer = torch.optim.Adam(vae.model.parameters(), lr=1e-3)
 
     # --- Test: Forward pass de BetaVaeModel ---
-    x_hat, mean, logvar = vae.model(batch)
-    print("BetaVaeModel Forward:")
-    for key, value in x_hat.items():
-        print(f"  {key}: {value.shape}")
-    print("mean shape:", mean.shape)
-    print("logvar shape:", logvar.shape)
+    while True:
+        x_hat, mean, logvar = vae.model(batch)
+        print("BetaVaeModel Forward:")
+        for key, value in x_hat.items():
+            print(f"  {key}: {value.shape}")
+            print("mean shape:", mean.shape)
+            print("logvar shape:", logvar.shape)
+        
 
-    # --- Test: train_step ---
-    loss, info = vae.train_step(batch, optimizer)
-    print("\nTrain Step:")
-    print("Loss:", loss)
-    print("Info:", info)
+        # --- Test: train_step ---
+        loss, info = vae.train_step(batch, optimizer)
+        print("\nTrain Step:")
+        print("Loss:", loss)
+        print("Info:", info)
 
-    # --- Test: val_step ---
-    val_loss, val_info = vae.val_step(batch)
-    print("\nValidation Step:")
-    print("Val Loss:", val_loss)
-    print("Val Info:", val_info)
+        # --- Test: val_step ---
+        val_loss, val_info = vae.val_step(batch)
+        print("\nValidation Step:")
+        print("Val Loss:", val_loss)
+        print("Val Info:", val_info)
 
-    # --- Test: predict (encode) ---
-    x_hat, mean, logvar = vae.predict(batch)
-    print("\nPredict Step (Encoding):")
-    print("mean shape:", mean.shape)
-    print("logvar shape:", logvar.shape)
+        # --- Test: predict (encode) ---
+        x_hat, mean, logvar = vae.predict(batch)
+        print("\nPredict Step (Encoding):")
+        print("mean shape:", mean.shape)
+        print("logvar shape:", logvar.shape)
 
-    print(x_hat.keys())
-    print(x_hat["state_image_1"].shape)
-    print(x_hat["state_image_2"].shape)
-    print(x_hat["state_joints"].shape)
+        print(x_hat.keys())
+        print(x_hat["observation.images.laptop"].shape)
+        print(x_hat["observation.images.phone"].shape)
+        print(x_hat["observation.state"].shape)
 
-    print("\n¡Test completado con éxito!")
+        print("\n¡Test completado con éxito!")

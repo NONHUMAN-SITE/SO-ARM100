@@ -89,7 +89,6 @@ class Concatenate(nn.Module):
             # Alternativamente, si se requiere conservar la dimensión temporal (B, T, *).
             x = torch.cat([m.reshape(m.shape[0], m.shape[1], -1) for m in modalities], dim=-1)
         
-        print("Concatenate",x.shape)
         if self.model is not None:
             x = self.model(x)
         return x
