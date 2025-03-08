@@ -16,7 +16,7 @@ class CurateDataConfig(HubMixin):
     optimizer: OptimizerConfig | None = None
     learning_rate: float = 1e-4
     steps: int = 100_000
-    save_freq: int = 20_000
+    save_freq: int = 10_000
     log_freq: int = 1000
     policy: PreTrainedConfig | None = None
     type: str = "states" # "states" or "actions"

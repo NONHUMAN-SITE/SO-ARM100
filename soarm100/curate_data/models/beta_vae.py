@@ -12,6 +12,7 @@ class BetaVAE:
                  encoder: nn.Module,
                  decoder: nn.Module,
                  z_dim: int,
+                 type: str,
                  beta: float = 1.0,
                  weights: list[float] | None = None):
         """
@@ -22,11 +23,20 @@ class BetaVAE:
         weights: Lista de pesos (floats) para cada componente de reconstrucción
                  (se asume el orden: [state_image_1, state_image_2, state_joints]).
         """
-
-        self.model = BetaVaeModel(
-            VAEEncoderStates(encoder, z_dim),
-            VAEDecoderStates(decoder)
-        )
+        if type == "states":
+            self.model = BetaVaeModel(
+                VAEEncoderStates(encoder, z_dim),
+                VAEDecoderStates(decoder)
+            )
+            keys_batch = ["observation.images.laptop", "observation.images.phone", "observation.state"]
+        elif type == "actions":
+            raise NotImplementedError("Actions are not implemented yet")
+            self.model = BetaVaeModel(
+                VAEEncoderActions(encoder, z_dim),
+                VAEDecoderActions(decoder)
+            )
+            keys_batch = ["action"]
+            
         if weights is None:
             self.weights = [1.0/200, 1.0/200, 1.0]
         else:   
@@ -105,7 +115,6 @@ class BetaVaeModel(nn.Module):
         z = mean + stddev * torch.randn_like(stddev)
         x_hat = self.decoder(z,batch)
         return x_hat,mean,logvar
-
 
 class VAEEncoderStates(nn.Module):
     """
