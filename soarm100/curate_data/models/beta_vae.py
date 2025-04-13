@@ -73,6 +73,12 @@ class BetaVAE:
         with torch.no_grad():
             return self.model(batch)
 
+    def save_checkpoint(self, path: str):
+        torch.save(self.model.state_dict(), path)
+
+    def load_checkpoint(self, path: str):
+        self.model.load_state_dict(torch.load(path))
+
     def _loss(self,
               x_hat: Dict[str, torch.Tensor],
               mean: torch.Tensor,
