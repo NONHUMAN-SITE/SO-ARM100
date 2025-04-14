@@ -1,9 +1,15 @@
 [project]
 name = "soarm100-nonhuman"
 version = "0.1.0"
+description = "Repositorio para el robot SOARM100 de NONHUMAN"
+authors = [{ name = "Leonardo Pérez", email = "leo.perez.nestares@gmail.com" }]
+readme = "README.md"
+requires-python = ">=3.10"
+
 dependencies = [
-    "python-dotenv==1.0.1",  # Versión exacta
-    "requests>=2.26.0,<3.0.0"  # Versión en un rango específico
+    "python-dotenv==1.0.1",
+    "requests>=2.26.0,<3.0.0",
+    "uv==0.6.19"
 ]
 
 [project.optional-dependencies]
@@ -18,4 +24,3 @@ agentic = [
     "pydub==0.25.1",
     "flet==0.23.2"
 ]
-
