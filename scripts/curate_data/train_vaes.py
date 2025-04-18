@@ -76,16 +76,11 @@ def train_vaes(cfg: CurateDataConfig):
 
     weights = [1.0, 1.0, 1.0]  # Peso por cada modalidad
 
-    if cfg.type == "states":
-        model = BetaVAE(encoder=MultiEncoderStates(),
-                        decoder=MultiDecoderStates(z_dim=z_dim,mlp_dim=mlp_dim),
-                        z_dim=z_dim,
-                        weights=weights).to(device)
-    else:
-        model = BetaVAE(encoder=MultiEncoderStates(),
-                        decoder=MultiDecoderStates(z_dim=z_dim,mlp_dim=mlp_dim),
-                        z_dim=z_dim,
-                        weights=weights).to(device)
+    model = BetaVAE(encoder=MultiEncoderStates(),
+                    decoder=MultiDecoderStates(z_dim=z_dim,mlp_dim=mlp_dim),
+                    z_dim=z_dim,
+                    type=cfg.type,
+                    weights=weights).to(device)
 
     optim, scheduler = make_optimizer_and_scheduler(model,cfg)
 
