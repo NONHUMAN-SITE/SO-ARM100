@@ -1,21 +1,36 @@
-[project]
+[tool.poetry]
 name = "soarm100-nonhuman"
 version = "0.1.0"
-dependencies = [
-    "python-dotenv==1.0.1",  # Versión exacta
-    "requests>=2.26.0,<3.0.0"  # Versión en un rango específico
-]
+description = ""
+authors = ["leonardo Pérez <leo.perez.nestares@gmail.com>"]
+package-mode = false
 
-[project.optional-dependencies]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+python-dotenv = "1.0.1"
+requests = ">=2.26.0,<3.0.0"
+
+[tool.poetry.extras]
 agentic = [
-    "pyaudio==0.2.14",
-    "pygame==2.6.1",
-    "openai==1.63.2",
-    "elevenlabs==1.51.0",
-    "langchain==0.3.19",
-    "langchain-openai==0.3.6",
-    "langgraph==0.2.74",
-    "pydub==0.25.1",
-    "flet==0.23.2"
+    "pyaudio",
+    "pygame",
+    "openai",
+    "elevenlabs",
+    "langchain",
+    "langchain-openai",
+    "langgraph",
+    "pydub",
+    "flet"
 ]
 
+[tool.poetry.group.agentic.dependencies]
+pyaudio = "0.2.14"
+pygame = "2.6.1"
+openai = "1.63.2"
+elevenlabs = "1.51.0"
+langchain = "0.3.19"
+langchain-openai = "0.3.6"
+langgraph = "0.2.74"
+pydub = "0.25.1"
+flet = "0.23.2"

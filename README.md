@@ -1,6 +1,4 @@
-# SOARM100
-
-![SOARM100](images/SOARM100.png)
+# SOARM100 (NONHUMAN)
 
 SOARM100 is an open-source robotics project. The robot's design is available at [The Robot Studio](https://github.com/TheRobotStudio/SO-ARM100). For training, we leverage algorithms implemented in [Hugging Face's LeRobot](https://github.com/huggingface/lerobot).  
 
