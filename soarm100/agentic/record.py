@@ -119,14 +119,14 @@ class RecordingController:
         self.should_stop = threading.Event()
         self.should_stop_playback = threading.Event()
         
-        cfg = init_config()
+        #cfg = init_config()
         self.stt_model    = STTWhisperModel()
         self.tts_model    = TTSElevenLabsModel()
-        self.robot_policy = SOARM100AgenticPolicy(cfg)
-        self.agent        = AgentSOARM100(self.robot_policy)
+        #self.robot_policy = SOARM100AgenticPolicy(cfg)
+        #self.agent        = AgentSOARM100(self.robot_policy)
 
-        self.robot_thread = threading.Thread(target=self.robot_policy._run, daemon=True)
-        self.robot_thread.start()
+        #self.robot_thread = threading.Thread(target=self.robot_policy._run, daemon=True)
+        #self.robot_thread.start()
 
         self.response_buffer = queue.Queue()
         self.response_thread = threading.Thread(target=self._process_response_loop, daemon=True)
