@@ -1,10 +1,10 @@
 .env
-
-**/__pycache__/
-**/__pycache__
 __pycache__/
-__pycache__
+**/__pycache__/
+
 outputs/
 wandb/
-
+test/dav
 poetry.lock
+pyproject.toml
+lerobot/
