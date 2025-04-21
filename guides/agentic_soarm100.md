@@ -1,5 +1,3 @@
-Claro, aquí tienes el contenido para un `README.md` en inglés, con redacción profesional y respetando exactamente la estructura e indicaciones que diste:
-
 # Agentic SOARM100
 
 This project introduces a novel way to interact with your robot, leveraging **OpenAI Realtime** [(https://platform.openai.com/docs/guides/realtime)](https://platform.openai.com/docs/guides/realtime) and its low-latency and VAD (Voice Activity Detection) capabilities to enable more fluid and natural communication. Additionally, we use **Isaac Gr00t** [(https://github.com/NVIDIA/Isaac-GR00T)](https://github.com/NVIDIA/Isaac-GR00T) as the VLA (Voice Language Agent) to control the robot.
