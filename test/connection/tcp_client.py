@@ -1,24 +1,28 @@
-import socket
+# tcp_client.py
+import zmq
 import time
 
-# ⚠️ CAMBIA esto por la dirección que te da Pinggy cuando hagas ssh
-PINGGY_HOST = 'tupinggysubdominio.pinggy.io'
-PORT = 443  # Puerto por defecto si usaste -p 443
+REMOTE_HOST = 'tcp://rnanx-132-251-2-3.a.free.pinggy.link:33471'
 
 def run_client():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
-        client_socket.connect((PINGGY_HOST, PORT))
-        print("[CLIENT] Conectado al servidor")
+    context = zmq.Context()
+    socket = context.socket(zmq.REQ)
+    socket.connect(REMOTE_HOST)
+    print(f"[CLIENT] Conectado a {REMOTE_HOST}")
 
-        while True:
+    while True:
+        try:
             mensaje = "ping"
-            client_socket.sendall(mensaje.encode())
+            socket.send_string(mensaje)
             print(f"[CLIENT] Enviado: {mensaje}")
 
-            data = client_socket.recv(1024)
-            print(f"[CLIENT] Recibido: {data.decode()}")
-
-            time.sleep(5)
+            respuesta = socket.recv_string()
+            print(f"[CLIENT] Recibido: {respuesta}")
+            
+            time.sleep(1)
+        except Exception as e:
+            print(f"[CLIENT] Error: {e}")
+            break
 
 if __name__ == "__main__":
     run_client()

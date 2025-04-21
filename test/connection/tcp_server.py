@@ -1,33 +1,30 @@
-import socket
-
-HOST = '0.0.0.0'  # Escucha en todas las interfaces
-PORT = 8000       # Puerto local que será expuesto con Pinggy
+# tcp_server.py
+import zmq
+import time
 
 def run_server():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        server_socket.bind((HOST, PORT))
-        server_socket.listen(1)
-        print(f"[SERVER] Escuchando en {HOST}:{PORT}")
+    context = zmq.Context()
+    socket = context.socket(zmq.REP)
+    socket.bind("tcp://*:3000")  # o "tcp://*:3000"
 
-        conn, addr = server_socket.accept()
-        with conn:
-            print(f"[SERVER] Conexión establecida con {addr}")
-            while True:
-                data = conn.recv(1024)
-                if not data:
-                    print("[SERVER] Conexión cerrada por el cliente")
-                    break
+    print(f"[SERVER] Escuchando en localhost:3000")
 
-                mensaje = data.decode()
-                print(f"[SERVER] Recibido: {mensaje}")
+    while True:
+        try:
+            mensaje = socket.recv_string()
+            print(f"[SERVER] Recibido: {mensaje}")
 
-                if mensaje == "ping":
-                    respuesta = "pong"
-                else:
-                    respuesta = "desconocido"
+            if mensaje == "ping":
+                respuesta = "pong"
+            else:
+                respuesta = "desconocido"
 
-                conn.sendall(respuesta.encode())
-                print(f"[SERVER] Enviado: {respuesta}")
+            socket.send_string(respuesta)
+            print(f"[SERVER] Enviado: {respuesta}")
+            time.sleep(1)
+        except Exception as e:
+            print(f"[SERVER] Error: {e}")
+            break
 
 if __name__ == "__main__":
     run_server()

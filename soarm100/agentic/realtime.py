@@ -329,8 +329,3 @@ class RealtimeClient:
         self.audio_handler.cleanup()
         if self.ws:
             await self.ws.close()
-
-
-"""
-if __name__ == "__main__":
-    asyncio.run(main())"""
