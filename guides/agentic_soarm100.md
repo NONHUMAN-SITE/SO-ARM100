@@ -34,7 +34,7 @@ graph TD
 To set up the bridge using Pinggy, run the following command:
 
 ```bash
-ssh -p 443 -R0:localhost:8000 tcp@a.pinggy.io 
+ssh -p 443 -R0:localhost:3000 -o StrictHostKeyChecking=no -o ServerAliveInterval=30 DHxZQnSOvyy+tcp@free.pinggy.io
 ```
 
 Then, use the appropriate protocol (TCP or WebSocket) by referencing the URI provided by Pinggy.
