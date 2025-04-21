@@ -6,5 +6,4 @@ outputs/
 wandb/
 test/dav
 poetry.lock
-pyproject.toml
 lerobot/
