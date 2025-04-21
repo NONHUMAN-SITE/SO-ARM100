@@ -137,7 +137,14 @@ class Interface:
     async def toggle_recording(self, e):
         try:
             if self.recording_state == RecordingState.RECORDING:
-                await self.client_realtime.cleanup()
+                self.add_log("Stopping recording...")
+                if hasattr(self, 'client_task') and self.client_task:
+                    self.client_task.cancel()
+                
+                if self.client_realtime:
+                    await self.client_realtime.cleanup()
+                    self.client_realtime = None 
+
                 self.recording_state = RecordingState.IDLE
                 self.mic_button.icon = ft.icons.RADIO_BUTTON_OFF
                 self.mic_button.tooltip = "Start recording"
@@ -145,9 +152,9 @@ class Interface:
             
             elif self.recording_state == RecordingState.IDLE:
                 
-                if not self.client_realtime or not self.client_realtime.is_connected():
-                    self.client_realtime = RealtimeClient(SOARM100_PROMPT, api_key)
-                    await self.client_realtime.connect()
+                self.page.update()
+                self.client_realtime = RealtimeClient(SOARM100_PROMPT, api_key)
+                    
 
                 self.client_task = asyncio.create_task(self.client_realtime.run())
 
