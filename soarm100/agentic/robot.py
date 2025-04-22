@@ -1,91 +1,138 @@
-import torch
-from copy import copy
-from queue import Queue
+# SO100 Real Robot
 import time
+from contextlib import contextmanager
 
-from lerobot.common.robot_devices.control_configs import ControlPipelineConfig
+import cv2
+import torch
+from lerobot.common.robot_devices.cameras.configs import OpenCVCameraConfig
+from lerobot.common.robot_devices.motors.dynamixel import TorqueMode
+from lerobot.common.robot_devices.robots.configs import So100RobotConfig
 from lerobot.common.robot_devices.robots.utils import make_robot_from_config
-from lerobot.common.policies.factory import make_policy
-from lerobot.common.robot_devices.control_utils import sanity_check_dataset_name
-from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-from .utils import nullcontext
+from lerobot.common.robot_devices.utils import RobotDeviceAlreadyConnectedError
 
-POLICIES = {"NULL":None,
-            "put_marker_in_box":"/home/leonardo/NONHUMAN/SO-ARM100/outputs/ckpt_test/pretrained_model",
-            "teleop":None}
-
-class SOARM100AgenticPolicy:
-    
-    def __init__(self,cfg: ControlPipelineConfig):
-        robot = make_robot_from_config(cfg.robot)
-        
-        self.robot = robot
-        self.cfg   = cfg
-        self.policy = None
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.running = True
-        self.policy_queue = Queue()
-        sanity_check_dataset_name(cfg.control.repo_id, cfg.control.policy)
-        self.dataset = LeRobotDataset.create(
-            cfg.control.repo_id,
-            cfg.control.fps,
-            root=cfg.control.root,
-            robot=robot,
-            use_videos=cfg.control.video,
-            image_writer_processes=cfg.control.num_image_writer_processes,
-            image_writer_threads=cfg.control.num_image_writer_threads_per_camera * len(robot.cameras),
-        )
-
-        if not self.robot.is_connected:
-            #self.robot.connect()
-            print("Robot connected")
+class SO100Robot:
+    def __init__(self, calibrate=False, enable_camera=False, cam_idx=9):
+        self.config = So100RobotConfig()
+        self.calibrate = calibrate
+        self.enable_camera = enable_camera
+        self.cam_idx = cam_idx
+        if not enable_camera:
+            self.config.cameras = {}
         else:
-            print("Robot already connected")
+            self.config.cameras = {"webcam": OpenCVCameraConfig(cam_idx, 30, 640, 480, "bgr")}
+        self.config.leader_arms = {}
 
-    def _run(self):
-        while self.running:
-            if self.policy is not None:
-                self.act()
-                time.sleep(0.03)
-            else:
-                time.sleep(0.03)
+        # remove the .cache/calibration/so100 folder
+        if self.calibrate:
+            import os
+            import shutil
 
-    def act(self):
-        observation = self.robot.capture_observation()
-        pred_action = self._predict_action(observation, self.policy, self.device)
-        action = self.robot.send_action(pred_action)
-        print("action sent: ",action)
+            calibration_folder = os.path.join(os.getcwd(), ".cache", "calibration", "so100")
+            print("========> Deleting calibration_folder:", calibration_folder)
+            if os.path.exists(calibration_folder):
+                shutil.rmtree(calibration_folder)
 
-    def change_policy(self, policy_name: str):
-        if policy_name not in POLICIES:
-            raise ValueError(f"Policy {policy_name} not found")
-    
-        if policy_name == "NULL":
-            self.policy = None
-        else:
-            policy_path = POLICIES[policy_name]
-            self.cfg.control.policy.path = policy_path
-            self.policy = make_policy(cfg=self.cfg.control.policy,
-                                      device=self.device,
-                                      ds_meta=self.dataset.meta)
+        # Create the robot
+        self.robot = make_robot_from_config(self.config)
+        self.motor_bus = self.robot.follower_arms["main"]
 
-    def _predict_action(self,observation, policy, device, use_amp=False):
-        observation = copy(observation)
-        with (
-            torch.inference_mode(),
-            torch.autocast(device_type=device.type) if device.type == "cuda" and use_amp else nullcontext(),
-        ):
-            for name in observation:
-                if "image" in name:
-                    observation[name] = observation[name].type(torch.float32) / 255
-                    observation[name] = observation[name].permute(2, 0, 1).contiguous()
-                observation[name] = observation[name].unsqueeze(0)
-                observation[name] = observation[name].to(device)
-            action = policy.select_action(observation)
-            action = action.squeeze(0)
-            action = action.to("cpu")
-        return action
+    @contextmanager
+    def activate(self):
+        try:
+            self.connect()
+            self.move_to_initial_pose()
+            yield
+        finally:
+            self.disconnect()
 
+    def connect(self):
+        if self.robot.is_connected:
+            raise RobotDeviceAlreadyConnectedError(
+                "ManipulatorRobot is already connected. Do not run `robot.connect()` twice."
+            )
 
+        # Connect the arms
+        self.motor_bus.connect()
 
+        # We assume that at connection time, arms are in a rest position, and torque can
+        # be safely disabled to run calibration and/or set robot preset configurations.
+        self.motor_bus.write("Torque_Enable", TorqueMode.DISABLED.value)
 
+        # Calibrate the robot
+        self.robot.activate_calibration()
+
+        self.set_so100_robot_preset()
+
+        # Enable torque on all motors of the follower arms
+        self.motor_bus.write("Torque_Enable", TorqueMode.ENABLED.value)
+        print("robot present position:", self.motor_bus.read("Present_Position"))
+        self.robot.is_connected = True
+
+        self.camera = self.robot.cameras["webcam"] if self.enable_camera else None
+        if self.camera is not None:
+            self.camera.connect()
+        print("================> SO100 Robot is fully connected =================")
+
+    def set_so100_robot_preset(self):
+        # Mode=0 for Position Control
+        self.motor_bus.write("Mode", 0)
+        # Set P_Coefficient to lower value to avoid shakiness (Default is 32)
+        # self.motor_bus.write("P_Coefficient", 16)
+        self.motor_bus.write("P_Coefficient", 10)
+        # Set I_Coefficient and D_Coefficient to default value 0 and 32
+        self.motor_bus.write("I_Coefficient", 0)
+        self.motor_bus.write("D_Coefficient", 32)
+        # Close the write lock so that Maximum_Acceleration gets written to EPROM address,
+        # which is mandatory for Maximum_Acceleration to take effect after rebooting.
+        self.motor_bus.write("Lock", 0)
+        # Set Maximum_Acceleration to 254 to speedup acceleration and deceleration of
+        # the motors. Note: this configuration is not in the official STS3215 Memory Table
+        self.motor_bus.write("Maximum_Acceleration", 254)
+        self.motor_bus.write("Acceleration", 254)
+
+    def move_to_initial_pose(self):
+        current_state = self.robot.capture_observation()["observation.state"]
+        # print("current_state", current_state)
+        # print all keys of the observation
+        # print("observation keys:", self.robot.capture_observation().keys())
+        current_state = torch.tensor([90, 90, 90, 90, -70, 30])
+        self.robot.send_action(current_state)
+        time.sleep(2)
+        print("-------------------------------- moving to initial pose")
+
+    def go_home(self):
+        # [ 88.0664, 156.7090, 135.6152,  83.7598, -89.1211,  16.5107]
+        print("-------------------------------- moving to home pose")
+        home_state = torch.tensor([88.0664, 156.7090, 135.6152, 83.7598, -89.1211, 16.5107])
+        self.set_target_state(home_state)
+        time.sleep(2)
+
+    def get_observation(self):
+        return self.robot.capture_observation()
+
+    def get_current_state(self):
+        return self.get_observation()["observation.state"].data.numpy()
+
+    def get_current_img(self):
+        img = self.get_observation()["observation.images.webcam"].data.numpy()
+        # convert bgr to rgb
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        return img
+
+    def set_target_state(self, target_state: torch.Tensor):
+        self.robot.send_action(target_state)
+
+    def enable(self):
+        self.motor_bus.write("Torque_Enable", TorqueMode.ENABLED.value)
+
+    def disable(self):
+        self.motor_bus.write("Torque_Enable", TorqueMode.DISABLED.value)
+
+    def disconnect(self):
+        self.disable()
+        self.robot.disconnect()
+        self.robot.is_connected = False
+        print("================> SO100 Robot disconnected")
+
+    def __del__(self):
+        self.disconnect()
