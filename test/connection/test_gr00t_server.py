@@ -14,10 +14,10 @@ def main():
     data_config = So100DataConfig()
     modality_config = data_config.modality_config()
     modality_transform = data_config.transform()
-    model_path = "/home/lperez/so100-checkpoints/checkpoint-1500"
+    model_path = "/home/leonardo/NONHUMAN/SO-ARM100/outputs"
     embodiment_tag = "new_embodiment"
     denoising_steps = 4
-    
+
     policy = Gr00tPolicy(
         model_path=model_path,
         modality_config=modality_config,

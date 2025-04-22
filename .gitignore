@@ -8,3 +8,4 @@ test/dav
 poetry.lock
 pyproject.toml
 lerobot/
+models/

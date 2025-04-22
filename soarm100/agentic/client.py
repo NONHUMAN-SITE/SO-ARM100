@@ -97,6 +97,7 @@ class Gr00tRobotInferenceClient:
         Returns:
         - action
         '''
+        start_time = time.time()
         obs_dict = {
             "video.webcam": img[np.newaxis, :, :, :],
             "state.single_arm": state[:5][np.newaxis, :].astype(np.float64),
@@ -104,17 +105,21 @@ class Gr00tRobotInferenceClient:
             "annotation.human.task_description": [self.language_instruction],
         }
         res = self.policy.get_action(obs_dict)
-        # print("Inference query time taken", time.time() - start_time)
+        print("Inference query time taken", time.time() - start_time)
         return res
 
     def sample_action(self):
+        import time
+        start_time = time.time()
         obs_dict = {
             "video.webcam": np.zeros((1, self.img_size[0], self.img_size[1], 3), dtype=np.uint8),
             "state.single_arm": np.zeros((1, 5)),
             "state.gripper": np.zeros((1, 1)),
             "annotation.human.action.task_description": [self.language_instruction],
         }
-        return self.policy.get_action(obs_dict)
+        res = self.policy.get_action(obs_dict)
+        print("Inference query time taken", time.time() - start_time)
+        return res
 
     def set_lang_instruction(self, lang_instruction):
         self.language_instruction = lang_instruction
