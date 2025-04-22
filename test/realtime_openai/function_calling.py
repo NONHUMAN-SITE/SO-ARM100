@@ -305,7 +305,6 @@ def send_fc_session_update(ws):
         print(f"Failed to send session update: {e}")
 
 
-
 # Function to create a WebSocket connection using IPv4
 def create_connection_with_ipv4(*args, **kwargs):
     # Enforce the use of IPv4

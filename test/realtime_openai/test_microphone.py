@@ -108,7 +108,7 @@ def main():
     start_time = time.time()
     frames = []
     
-    while time.time() - start_time < 10.0:
+    while time.time() - start_time < 5.0:
         if data := audio.record_chunk():
             frames.append(data)
     
