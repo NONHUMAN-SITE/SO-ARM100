@@ -1,13 +1,20 @@
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 import asyncio
 import websockets
 import json
 import pyaudio
 import base64
 import logging
-import os
 import ssl
 import threading
 from dotenv import load_dotenv
+from llm.fake_tools import get_weather
+from typing import List, Dict, Any
+
 load_dotenv()
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -121,6 +128,8 @@ class RealtimeClient:
         self.audio_buffer = b''  # Buffer for streaming audio responses
         self.instructions = instructions
         self.voice = voice
+        self.tools = self._register_tools()
+        self.get_weather_call=get_weather
 
         # VAD mode (set to null to disable)
         self.VAD_turn_detection = True
@@ -141,9 +150,39 @@ class RealtimeClient:
             "input_audio_transcription": {  # Get transcription of user turns
                 "model": "whisper-1"
             },
-            "temperature": 0.6
+            "temperature": 0.6,
+            "tools": self.tools
         }
-
+    
+    def _register_tools(self) -> List[Dict[str,Any]]:
+        tools = []
+        
+        tools.append({
+  "name": "get_weather",
+  "description": "Determine weather in my location",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "location": {
+        "type": "string",
+        "description": "The city and state e.g. San Francisco, CA"
+      },
+      "unit": {
+        "type": "string",
+        "enum": [
+          "c",
+          "f"
+        ]
+      }
+    },
+    "additionalProperties": False,
+    "required": [
+      "location",
+      "unit"
+    ]
+  }
+})
+        return tools
     def is_connected(self):
         # Check if the WebSocket exists and is connected
         return hasattr(self, 'ws') and self.ws and self.ws.open
