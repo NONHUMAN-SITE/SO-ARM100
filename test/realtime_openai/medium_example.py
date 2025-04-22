@@ -224,13 +224,13 @@ class RealtimeClient:
         if event_type == "error":
             logger.error(f"Error event received: {event['error']['message']}")
         elif event_type == "response.text.delta":
-            # Print text response incrementally
             print(event["delta"], end="", flush=True)
+
         elif event_type == "response.audio.delta":
-            # Append audio data to buffer
             audio_data = base64.b64decode(event["delta"])
             self.audio_buffer += audio_data
             logger.debug("Audio data appended to buffer")
+        
         elif event_type == "response.audio.done":
             # Play the complete audio response
             if self.audio_buffer:
