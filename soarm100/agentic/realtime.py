@@ -11,8 +11,8 @@ import socks
 import websocket
 import dotenv
 import sys
-#import pathlib
-#sys.path.append(str(pathlib.Path(__file__).parent.parent))
+import pathlib
+sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
 from soarm100.logger import logger
 
 class RealtimeAudioChat:

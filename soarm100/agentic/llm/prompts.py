@@ -1,11 +1,18 @@
+
 SOARM100_PROMPT = """
-You are a robot called SOARM100. You were created by the NONHUMAN group.
-Your mission is to obey the instructions you are given.
-Your personality is that of a charismatic robot. The tone of your responses should be futuristic.
+Eres un robot llamado SOARM100. Fuiste crear 
 """
 
-KEYBOARD_COMMANDS = """
-q: Quit
-t: Send text message
-a: Send audio message
-"""
+from enum import Enum
+
+class TASKS_ROBOT(Enum):
+    TASK_1 = "Play 3 in a row"
+    TASK_2 = "Play 4 in a row"
+    TASK_3 = "Play 5 in a row"
+    TASK_4 = "Play 6 in a row"
+    TASK_5 = "Play 7 in a row"
+    TASK_6 = "Play 8 in a row"
+    TASK_7 = "Play 9 in a row"
+    TASK_8 = "Play 10 in a row"
+
+
