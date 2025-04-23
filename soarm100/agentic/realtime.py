@@ -33,7 +33,7 @@ class RealtimeAudioChat:
         self.API_KEY = os.getenv("OPENAI_API_KEY")
         if not self.API_KEY:
             raise ValueError("API key is missing. Please set the 'OPENAI_API_KEY' environment variable.")
-        self.WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01'
+        self.WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-mini-audio-preview-2024-12-17'
         
         # State variables
         self.audio_buffer = bytearray()
