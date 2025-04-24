@@ -14,11 +14,13 @@ import sys
 import pathlib
 sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
 from soarm100.logger import logger
+from soarm100.agentic.llm.tools import GIVE_INSTRUCTIONS_TOOL, GET_FEEDBACK_TOOL
 
 class RealtimeAudioChat:
-    def __init__(self):
+    def __init__(self,tools=None,callback_dict=None):
         dotenv.load_dotenv()
-        
+        self.tools = tools
+        self.callback_dict = callback_dict
         # Configure SOCKS5 proxy
         socket.socket = socks.socksocket
         
@@ -33,7 +35,7 @@ class RealtimeAudioChat:
         self.API_KEY = os.getenv("OPENAI_API_KEY")
         if not self.API_KEY:
             raise ValueError("API key is missing. Please set the 'OPENAI_API_KEY' environment variable.")
-        self.WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-mini-audio-preview-2024-12-17'
+        self.WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-mini-realtime-preview-2024-12-17'
         
         # State variables
         self.audio_buffer = bytearray()
@@ -42,6 +44,10 @@ class RealtimeAudioChat:
         self.mic_on_at = 0
         self.mic_active = None
         self.is_playing = False
+        
+        # Thread control
+        self.main_thread = None
+        self.is_running = False
         
         # PyAudio instance
         self.p = pyaudio.PyAudio()
@@ -131,35 +137,27 @@ class RealtimeAudioChat:
         except Exception as e:
             logger.log(f'Error in receive_events: {e}', level='error')
 
-    def handle_function_call(self, event_json, ws):
-        """Handle function calls from the AI"""
-        try:
-            name = event_json.get("name", "")
-            call_id = event_json.get("call_id", "")
-            arguments = event_json.get("arguments", "{}")
+    def handle_function_call(self, event, ws):
+        #try:
+            """Handle function calls from the AI"""
+            name = event.get("name", "")
+            call_id = event.get("call_id", "")
+            arguments = event.get("arguments", "{}")
             function_call_args = json.loads(arguments)
-
-            if name == "write_notepad":
-                logger.log(f"Starting write_notepad function", level='info')
-                content = function_call_args.get("content", "")
-                date = function_call_args.get("date", "")
-                
-                subprocess.Popen(
-                    ["powershell", "-Command", f"Add-Content -Path temp.txt -Value 'date: {date}\n{content}\n\n'; notepad.exe temp.txt"])
-                
-                self.send_function_call_result("write notepad successful.", call_id, ws)
+            if name == "give_instructions":
+                logger.log(f"Starting give_instructions function", level='info')
+                instruction = function_call_args.get("instruction", "")
+                result = self.callback_dict["give_instructions"](instruction)
+                self.send_function_call_result(result, call_id, ws)
+            if name == "get_feedback":
+                logger.log(f"Starting get_feedback function", level='info')
+                consult_query = function_call_args.get("consult_query", "")
+                task = function_call_args.get("task", "")
+                result = self.callback_dict["get_feedback"](consult_query,task)
+                self.send_function_call_result(result, call_id, ws)
+        #except Exception as e:
+        #   logger.log(f"Error handling function call: {e}", level='error')
             
-            elif name == "get_weather":
-                city = function_call_args.get("city", "")
-                if city:
-                    weather_result = self.get_weather(city)
-                    self.send_function_call_result(weather_result, call_id, ws)
-                else:
-                    logger.log("City not provided for get_weather function.", level='warning')
-
-        except Exception as e:
-            logger.log(f"Error handling function call: {e}", level='error')
-
     def send_function_call_result(self, result, call_id, ws):
         """Send function call results back to the AI"""
         result_json = {
@@ -215,42 +213,7 @@ class RealtimeAudioChat:
                     "model": "whisper-1"
                 },
                 "tool_choice": "auto",
-                "tools": [
-                    {
-                        "type": "function",
-                        "name": "get_weather",
-                        "description": "Get current weather for a specified city",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "city": {
-                                    "type": "string",
-                                    "description": "The name of the city for which to fetch the weather."
-                                }
-                            },
-                            "required": ["city"]
-                        }
-                    },
-                    {
-                        "type": "function",
-                        "name": "write_notepad",
-                        "description": "Open a text editor and write the time and content",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "content": {
-                                    "type": "string",
-                                    "description": "The content consists of my questions along with the answers you provide."
-                                },
-                                "date": {
-                                    "type": "string",
-                                    "description": "the time, for example, 2024-10-29 16:19."
-                                }
-                            },
-                            "required": ["content", "date"]
-                        }
-                    }
-                ]
+                "tools": self.tools
             }
         }
 
@@ -356,9 +319,55 @@ class RealtimeAudioChat:
             self.p.terminate()
             logger.log('Audio streams stopped and resources released.', level='success')
 
+    def start(self):
+        """Start the chat in a separate thread"""
+        if self.is_running:
+            logger.log("Chat is already running", level='warning')
+            return False
+        
+        self.is_running = True
+        self.stop_event.clear()
+        self.main_thread = threading.Thread(target=self.run)
+        self.main_thread.daemon = True  # Thread will be killed when main program exits
+        self.main_thread.start()
+        logger.log("Chat started in background thread", level='success')
+        return True
+
+    def stop(self):
+        """Stop the chat gracefully"""
+        if not self.is_running:
+            logger.log("Chat is not running", level='warning')
+            return False
+        
+        logger.log("Stopping chat...", level='info')
+        self.stop_event.set()
+        if self.main_thread and self.main_thread.is_alive():
+            self.main_thread.join()  # Wait for the thread to finish
+        self.is_running = False
+        logger.log("Chat stopped", level='success')
+        return True
+
+    def is_active(self):
+        """Check if the chat is currently running"""
+        return self.is_running and self.main_thread and self.main_thread.is_alive()
+
 if __name__ == '__main__':
+    # Example of non-blocking usage
     chat = RealtimeAudioChat()
+    
     try:
-        chat.run()
+        # Start chat in background
+        chat.start()
+        
+        # Main program can continue doing other things
+        logger.log("Main program continuing...", level='info')
+        
+        # Example: Keep main program running
+        while chat.is_active():
+            time.sleep(1)
+            # Do other things here...
+            
     except KeyboardInterrupt:
+        logger.log("Received interrupt, stopping chat...", level='warning')
+        chat.stop()
         logger.log("Application terminated by user.", level='warning')

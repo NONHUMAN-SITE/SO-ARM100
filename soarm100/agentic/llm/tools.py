@@ -6,12 +6,19 @@ from langchain_core.callbacks import (
 )
 from langchain_core.tools import BaseTool
 from langchain_core.tools.base import ArgsSchema
+from langchain_core.utils.function_calling import convert_to_openai_function
 from pydantic import BaseModel, Field
 
 from soarm100.agentic.llm.prompts import TASKS_ROBOT
 
+
+def convert_to_tool_openai(tool):
+    openai_tool = convert_to_openai_function(tool)
+    openai_tool["type"] = "function"
+    return openai_tool
+
 class GiveInstructionSchema(BaseModel):
-    instructions: TASKS_ROBOT = Field(
+    instruction: TASKS_ROBOT = Field(
         description="The instruction to give to the physical robot. Must be one of the predefined instructions."
     )
 
@@ -59,5 +66,7 @@ class GetFeedback(BaseTool):
     async def _arun(self, feedback: str, run_manager: Optional[AsyncCallbackManagerForToolRun] = None) -> str:
         """Use the tool asynchronously."""
         return f"Executing: {feedback}"
-    
+
+GIVE_INSTRUCTIONS_TOOL = convert_to_tool_openai(GiveInstructions())
+GET_FEEDBACK_TOOL = convert_to_tool_openai(GetFeedback())
     

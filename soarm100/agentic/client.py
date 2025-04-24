@@ -1,3 +1,4 @@
+import time
 from typing import Any, Dict
 import zmq
 import numpy as np
@@ -124,10 +125,6 @@ class Gr00tRobotInferenceClient:
     def set_lang_instruction(self, lang_instruction):
         self.language_instruction = lang_instruction
 
-if __name__ == "__main__":
-    import time
-    client = Gr00tRobotInferenceClient()
-    while True:
-        response = client.ping()
-        print(response)
-        time.sleep(1)
+    def get_lang_instruction(self):
+        return self.language_instruction
+

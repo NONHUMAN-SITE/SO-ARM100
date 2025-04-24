@@ -6,13 +6,14 @@ Eres un robot llamado SOARM100. Fuiste crear
 from enum import Enum
 
 class TASKS_ROBOT(Enum):
-    TASK_1 = "Play 3 in a row"
-    TASK_2 = "Play 4 in a row"
-    TASK_3 = "Play 5 in a row"
-    TASK_4 = "Play 6 in a row"
-    TASK_5 = "Play 7 in a row"
-    TASK_6 = "Play 8 in a row"
-    TASK_7 = "Play 9 in a row"
-    TASK_8 = "Play 10 in a row"
+    TASK_1 = "Execute the task 1"
+    TASK_2 = "Execute the task 2"
+    TASK_3 = "Execute the task 3"
+    TASK_4 = "Execute the task 4"
+    TASK_5 = "Execute the task 5"
+    TASK_6 = "Execute the task 6"
+    TASK_7 = "Execute the task 7"
+    TASK_8 = "Execute the task 8"
+    QUIET  = "Stay quiet"
 
 

@@ -40,7 +40,7 @@ class SO100Robot:
     def activate(self):
         try:
             self.connect()
-            self.move_to_initial_pose()
+            self.go_home()
             yield
         finally:
             self.disconnect()
@@ -103,9 +103,10 @@ class SO100Robot:
     def go_home(self):
         # [ 88.0664, 156.7090, 135.6152,  83.7598, -89.1211,  16.5107]
         print("-------------------------------- moving to home pose")
-        home_state = torch.tensor([88.0664, 156.7090, 135.6152, 83.7598, -89.1211, 16.5107])
+        #home_state = torch.tensor([88.0664, 156.7090, 135.6152, 83.7598, -89.1211, 16.5107])
+        home_state = torch.tensor([ -1.1425781, 188.52539, 180.08789, 73.47656, 15.029297, 1.4911463])
         self.set_target_state(home_state)
-        time.sleep(2)
+        time.sleep(0.01)
 
     def get_observation(self):
         return self.robot.capture_observation()
