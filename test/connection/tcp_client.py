@@ -2,7 +2,7 @@
 import zmq
 import time
 
-REMOTE_HOST = 'tcp://rnanx-132-251-2-3.a.free.pinggy.link:33471'
+REMOTE_HOST = 'tcp://127.0.0.1:3000'
 
 def run_client():
     context = zmq.Context()

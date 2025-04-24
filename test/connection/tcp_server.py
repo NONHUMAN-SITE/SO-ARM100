@@ -5,7 +5,7 @@ import time
 def run_server():
     context = zmq.Context()
     socket = context.socket(zmq.REP)
-    socket.bind("tcp://*:3000")  # o "tcp://*:3000"
+    socket.bind("tcp://127.0.0.1:3000")  # o "tcp://*:3000"
 
     print(f"[SERVER] Escuchando en localhost:3000")
 
