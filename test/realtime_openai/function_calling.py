@@ -21,7 +21,7 @@ API_KEY = os.getenv("OPENAI_API_KEY")
 if not API_KEY:
     raise ValueError("API key is missing. Please set the 'OPENAI_API_KEY' environment variable.")
 
-WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01'
+WS_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-mini-realtime-preview-2024-12-17'
 
 CHUNK_SIZE = 1024
 RATE = 24000
